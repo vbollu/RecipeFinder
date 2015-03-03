@@ -77,22 +77,39 @@ public class RecipeFinderProcessor {
 					new FileReader(itemsFileName));
 			String line = null;
 			while ((line = br.readLine()) != null) {
-				String[] b = line.split(",");
-				Item item = new Item();
-				item.setItemName(b[0]);
-				item.setAmount(Integer.valueOf(b[1]));
-				String unit = b[2];
-				if (unit.equalsIgnoreCase("of")) {
-					item.setUnit(Unit.OF);
-				} else if (unit.equalsIgnoreCase("grams")) {
-					item.setUnit(Unit.GRAMS);
-				} else if (unit.equalsIgnoreCase("ml")) {
-					item.setUnit(Unit.ML);
-				} else if (unit.equalsIgnoreCase("slices")) {
-					item.setUnit(Unit.SLICES);
+				try {
+					String[] b = line.split(",");
+
+					// Ignoring item, if any of the item details not provided
+					if (b.length < 4 || b[0].isEmpty() || b[1].isEmpty()
+							|| b[2].isEmpty() || b[3].isEmpty()) {
+						continue;
+					}
+					Item item = new Item();
+					item.setItemName(b[0]);
+					item.setAmount(Integer.valueOf(b[1]));
+					String unit = b[2];
+					if (unit.equalsIgnoreCase("of")) {
+						item.setUnit(Unit.OF);
+					} else if (unit.equalsIgnoreCase("grams")) {
+						item.setUnit(Unit.GRAMS);
+					} else if (unit.equalsIgnoreCase("ml")) {
+						item.setUnit(Unit.ML);
+					} else if (unit.equalsIgnoreCase("slices")) {
+						item.setUnit(Unit.SLICES);
+					}
+					item.setUseBy(stringToDate((String) b[3]));
+
+					// Ignoring item, if it is already expired
+					if (item.getUseBy().before(new Date())) {
+						continue;
+					}
+					fridgeItemsMap.put(item.getItemName(), item);
+				} catch (Exception e) {
+					// Ignoring the particular item if there is any exception
+					// while parsing
+					continue;
 				}
-				item.setUseBy(stringToDate((String) b[3]));
-				fridgeItemsMap.put(item.getItemName(), item);
 			}
 			br.close();
 		} catch (Exception e) {
@@ -109,31 +126,40 @@ public class RecipeFinderProcessor {
 			JSONArray jsonArray = (JSONArray) parser.parse(new FileReader(
 					recipesFileName));
 			for (Iterator recipe = jsonArray.iterator(); recipe.hasNext();) {
-				JSONObject jsonObject = (JSONObject) recipe.next();
-				String recipeName = (String) jsonObject.get("name");
-				JSONArray ingredients = (JSONArray) jsonObject
-						.get("ingredients");
-				List<Ingredient> ingredientList = new ArrayList<Ingredient>();
-				for (Iterator<JSONObject> iterator = ingredients.iterator(); iterator
-						.hasNext();) {
-					JSONObject ingredient = (JSONObject) iterator.next();
-					Ingredient ingredientDtls = new Ingredient();
-					ingredientDtls.setItemName((String) ingredient.get("item"));
-					ingredientDtls.setAmount(Integer
-							.valueOf((String) ingredient.get("amount")));
-					String unit = (String) ingredient.get("unit");
-					if (unit.equalsIgnoreCase("of")) {
-						ingredientDtls.setUnit(Unit.OF);
-					} else if (unit.equalsIgnoreCase("grams")) {
-						ingredientDtls.setUnit(Unit.GRAMS);
-					} else if (unit.equalsIgnoreCase("ml")) {
-						ingredientDtls.setUnit(Unit.ML);
-					} else if (unit.equalsIgnoreCase("slices")) {
-						ingredientDtls.setUnit(Unit.SLICES);
+				try {
+					JSONObject jsonObject = (JSONObject) recipe.next();
+					String recipeName = (String) jsonObject.get("name");
+					JSONArray ingredients = (JSONArray) jsonObject
+							.get("ingredients");
+					List<Ingredient> ingredientList = new ArrayList<Ingredient>();
+					for (Iterator<JSONObject> iterator = ingredients.iterator(); iterator
+							.hasNext();) {
+						JSONObject ingredient = (JSONObject) iterator.next();
+						Ingredient ingredientDtls = new Ingredient();
+						ingredientDtls.setItemName((String) ingredient
+								.get("item"));
+						ingredientDtls.setAmount(Integer
+								.valueOf((String) ingredient.get("amount")));
+						String unit = (String) ingredient.get("unit");
+						if (unit.equalsIgnoreCase("of")) {
+							ingredientDtls.setUnit(Unit.OF);
+						} else if (unit.equalsIgnoreCase("grams")) {
+							ingredientDtls.setUnit(Unit.GRAMS);
+						} else if (unit.equalsIgnoreCase("ml")) {
+							ingredientDtls.setUnit(Unit.ML);
+						} else if (unit.equalsIgnoreCase("slices")) {
+							ingredientDtls.setUnit(Unit.SLICES);
+						}else{
+							throw new Exception();
+						}
+						ingredientList.add(ingredientDtls);
 					}
-					ingredientList.add(ingredientDtls);
+					recipeList.put(recipeName, ingredientList);
+				} catch (Exception e) {
+					// Ignoring recipe if there is any excpetion while parsng
+					// JSON data
+					continue;
 				}
-				recipeList.put(recipeName, ingredientList);
 			}
 
 		} catch (Exception e) {
@@ -171,7 +197,7 @@ public class RecipeFinderProcessor {
 			}
 			if (matchFound) {
 				validRecipeList.put((String) entry.getKey(), list);
-				System.out.println("Recipe found:" + entry.getKey());
+				//System.out.println("Recipe found:" + entry.getKey());
 			}
 
 		}
@@ -246,8 +272,32 @@ public class RecipeFinderProcessor {
 	 * Printing possible recipes
 	 */
 	public void printPossibleRecipes() {
-		for (Entry<String, List<Ingredient>> entry : finalRecipesMap.entrySet()) {
-			System.out.println("Recipe Name:" + entry.getKey());
+		if (finalRecipesMap == null || finalRecipesMap.size() == 0) {
+			System.out.println("Order Takeout");
+		} else {
+			System.out.println("Recipe Name(s):");
+
+			for (Entry<String, List<Ingredient>> entry : finalRecipesMap
+					.entrySet()) {
+				System.out.println(entry.getKey());
+			}
 		}
+
 	}
+
+	/**
+	 * @return the finalRecipesMap
+	 */
+	public Map<String, List<Ingredient>> getFinalRecipesMap() {
+		return finalRecipesMap;
+	}
+
+	/**
+	 * @param finalRecipesMap
+	 *            the finalRecipesMap to set
+	 */
+	public void setFinalRecipesMap(Map<String, List<Ingredient>> finalRecipesMap) {
+		this.finalRecipesMap = finalRecipesMap;
+	}
+
 }
